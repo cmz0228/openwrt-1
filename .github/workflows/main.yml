@@ -188,7 +188,7 @@ jobs:
            CONFIG_PACKAGE_kmod-tcp-bbr-mod=y
            CONFIG_PACKAGE_kmod-tcp-bbr-nanqinlang=y
            CONFIG_PACKAGE_luci-app-vssr-coexist=y
-           CONFIG_PACKAGE_luci-lib-docker=y
+           #CONFIG_PACKAGE_luci-lib-docker=y
            CONFIG_PACKAGE_luci-app-dockerman=y
            CONFIG_PACKAGE_luci-app-diskman=y
            CONFIG_LUCI_LANG_en=y
