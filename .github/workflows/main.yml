@@ -9,9 +9,9 @@
 
 name: OpenWrt18.06-CI
 on:
-   #push:
-    #branches: 
-      #- master
+   push:
+    branches: 
+      - master
   # schedule:
   #   - cron: 0 20 * * *
   # release:
@@ -115,14 +115,14 @@ jobs:
           # CONFIG_PACKAGE_ipv6helper=y
           # EOF
           # 多文件系统支持:
-          # cat >> .config <<EOF
-          # CONFIG_PACKAGE_kmod-fs-nfs=y
-          # CONFIG_PACKAGE_kmod-fs-nfs-common=y
-          # CONFIG_PACKAGE_kmod-fs-nfs-v3=y
-          # CONFIG_PACKAGE_kmod-fs-nfs-v4=y
-          # CONFIG_PACKAGE_kmod-fs-ntfs=y
-          # CONFIG_PACKAGE_kmod-fs-squashfs=y
-          # EOF
+          cat >> .config <<EOF
+          CONFIG_PACKAGE_kmod-fs-nfs=y
+          CONFIG_PACKAGE_kmod-fs-nfs-common=y
+          CONFIG_PACKAGE_kmod-fs-nfs-v3=y
+          CONFIG_PACKAGE_kmod-fs-nfs-v4=y
+          CONFIG_PACKAGE_kmod-fs-ntfs=y
+          CONFIG_PACKAGE_kmod-fs-squashfs=y
+          EOF
           # USB3.0支持:
            cat >> .config <<EOF
            CONFIG_PACKAGE_kmod-usb-ohci=y
@@ -136,7 +136,7 @@ jobs:
            CONFIG_PACKAGE_luci-app-adbyby-plus=y
            CONFIG_PACKAGE_luci-app-aria2=y
            CONFIG_PACKAGE_luci-app-baidupcs-web=y
-           CONFIG_PACKAGE_luci-app-docker=y
+           #CONFIG_PACKAGE_luci-app-docker=y
            CONFIG_PACKAGE_luci-app-frpc=y
            CONFIG_PACKAGE_luci-app-kodexplorer=y
            CONFIG_PACKAGE_luci-app-minidlna=y
@@ -190,7 +190,6 @@ jobs:
            CONFIG_PACKAGE_kmod-tcp-bbr-mod=y
            CONFIG_PACKAGE_kmod-tcp-bbr-nanqinlang=y
            CONFIG_PACKAGE_luci-app-vssr-coexist=y
-           #CONFIG_PACKAGE_luci-lib-docker=y
            CONFIG_PACKAGE_luci-app-dockerman=y
            CONFIG_PACKAGE_luci-app-diskman=y
            CONFIG_LUCI_LANG_en=y
