@@ -9,9 +9,9 @@
 
 name: OpenWrt18.06-CI
 on:
-   push:
-    branches: 
-      - master
+   #push:
+    #branches: 
+      #- master
   # schedule:
   #   - cron: 0 20 * * *
   # release:
@@ -134,7 +134,7 @@ jobs:
            CONFIG_PACKAGE_luci-app-adbyby-plus=y
            CONFIG_PACKAGE_luci-app-aria2=y
            CONFIG_PACKAGE_luci-app-baidupcs-web=y
-          # CONFIG_PACKAGE_luci-app-docker=y
+           CONFIG_PACKAGE_luci-app-docker=y
            CONFIG_PACKAGE_luci-app-frpc=y
            CONFIG_PACKAGE_luci-app-kodexplorer=y
            CONFIG_PACKAGE_luci-app-minidlna=y
@@ -188,6 +188,9 @@ jobs:
            CONFIG_PACKAGE_kmod-tcp-bbr-mod=y
            CONFIG_PACKAGE_kmod-tcp-bbr-nanqinlang=y
            CONFIG_PACKAGE_luci-app-vssr-coexist=y
+           CONFIG_PACKAGE_luci-lib-docker=y
+           CONFIG_PACKAGE_luci-app-dockerman=y
+           CONFIG_PACKAGE_luci-app-diskman=y
            CONFIG_LUCI_LANG_en=y
            CONFIG_LUCI_LANG_zh-tw=y
            EOF
@@ -209,9 +212,9 @@ jobs:
            EOF
           # 取消编译VMware镜像以及镜像填充 (不要删除被缩进的注释符号):
            cat >> .config <<EOF
-          # CONFIG_TARGET_IMAGES_PAD is not set
-          # CONFIG_VMDK_IMAGES is not set
-          EOF
+           CONFIG_TARGET_IMAGES_PAD=y
+           CONFIG_VMDK_IMAGES=y
+           EOF
           # 
           # ========================固件定制部分结束========================
           # 
