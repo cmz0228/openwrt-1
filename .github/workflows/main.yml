@@ -54,7 +54,9 @@ jobs:
       - name: 自定义插件
         run: |
            cd package/lean
-           git clone  https://github.com/Flowers-in-thorns/luci-app-vssr-coexist
+           git clone https://github.com/Flowers-in-thorns/luci-app-vssr-coexist
+           git clone https://github.com/lisaac/luci-app-dockerman.git
+           git clone https://github.com/lisaac/luci-app-diskman.git
          
 
       - name: Update feeds
