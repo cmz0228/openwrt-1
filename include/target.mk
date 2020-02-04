@@ -13,7 +13,7 @@ __target_inc=1
 DEVICE_TYPE?=router
 
 # Default packages - the really basic set
-DEFAULT_PACKAGES:=base-files libc libgcc busybox dropbear mtd uci opkg netifd fstools uclient-fetch logd block-mount \
+DEFAULT_PACKAGES:=base-files libc libgcc busybox dropbear mtd uci opkg netifd fstools uclient-fetch logd block-mount urandom-seed urngd \
 kmod-nf-nathelper kmod-nf-nathelper-extra kmod-ipt-raw wget libustream-openssl ca-certificates \
 default-settings luci luci-app-ddns luci-app-sqm luci-app-upnp luci-app-adbyby-plus luci-app-autoreboot \
 luci-app-filetransfer luci-app-vsftpd luci-app-ssr-plus \
@@ -21,7 +21,7 @@ luci-app-pptp-server luci-app-arpbind luci-app-vlmcsd luci-app-wol luci-app-ramf
 luci-app-sfe luci-app-flowoffload luci-app-nlbwmon luci-app-accesscontrol \
 ddns-scripts_aliyun ddns-scripts_dnspod libustream-openssl
 # For nas targets
-DEFAULT_PACKAGES.nas:=fdisk lsblk mdadm automount autosamba luci-app-usb-printer 
+DEFAULT_PACKAGES.nas:=fdisk lsblk mdadm automount autosamba luci-app-usb-printer
 # For router targets
 DEFAULT_PACKAGES.router:=dnsmasq-full iptables ppp ppp-mod-pppoe firewall kmod-ipt-offload kmod-tcp-bbr
 DEFAULT_PACKAGES.bootloader:=
@@ -57,7 +57,7 @@ else
   endif
 endif
 
-ifneq ($(filter 3.18 4.9,$(KERNEL_PATCHVER)),)
+ifneq ($(filter 4.9,$(KERNEL_PATCHVER)),)
   DEFAULT_PACKAGES.router:=$(filter-out kmod-ipt-offload,$(DEFAULT_PACKAGES.router))
 endif
 
