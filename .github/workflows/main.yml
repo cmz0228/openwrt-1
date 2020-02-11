@@ -54,8 +54,7 @@ jobs:
       - name: 自定义插件
         run: |
            cd package/lean
-           git clone https://github.com/Flowers-in-thorns/luci-app-vssr-coexist
-         
+           git clone https://github.com/Flowers-in-thorns/luci-app-vssr-coexist         
 
       - name: Update feeds
         run: |
@@ -189,6 +188,7 @@ jobs:
           CONFIG_PACKAGE_kmod-tcp-bbr-mod=y
           CONFIG_PACKAGE_kmod-tcp-bbr-nanqinlang=y
           CONFIG_PACKAGE_luci-app-vssr-coexist=y
+          CONFIG_PACKAGE_luci-lib-docker=y
           CONFIG_PACKAGE_luci-app-dockerman=y
           CONFIG_PACKAGE_luci-app-diskman=y
           CONFIG_LUCI_LANG_en=y
@@ -199,6 +199,7 @@ jobs:
           CONFIG_PACKAGE_luci-theme-opentomcat=y
           CONFIG_PACKAGE_luci-theme-opentomato=y
           CONFIG_PACKAGE_luci-theme-argon-mod=y
+          CONFIG_PACKAGE_luci-theme-Butterfly=y
           EOF
           # 常用软件包:
           cat >> .config <<EOF
