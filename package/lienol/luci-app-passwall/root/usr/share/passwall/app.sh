@@ -89,6 +89,18 @@ get_host_ip() {
 	echo $ip
 }
 
+get_node_host_ip() {
+	local ip
+	local address=$(config_n_get $1 address)
+	[ -n "$address" ] && {
+		local use_ipv6=$(config_n_get $1 use_ipv6)
+		local network_type="ipv4"
+		[ "$use_ipv6" == "1" ] && network_type="ipv6"
+		ip=$(get_host_ip $network_type $address)
+	}
+	echo $ip
+}
+
 check_port_exists() {
 	port=$1
 	protocol=$2
@@ -157,7 +169,8 @@ for i in $(seq 1 $SOCKS5_NODE_NUM); do
 	eval SOCKS5_NODE$i=$(config_t_get global socks5_node$i nil)
 done
 
-[ "$UDP_NODE1" == "default" ] && UDP_NODE1=$TCP_NODE1
+[ "$UDP_NODE1" == "tcp" ] && UDP_NODE1=$TCP_NODE1
+[ "$SOCKS5_NODE1" == "tcp" ] && SOCKS5_NODE1=$TCP_NODE1
 
 TCP_NODE1_IP=""
 UDP_NODE1_IP=""
@@ -177,13 +190,13 @@ BROOK_TCP_CMD=""
 BROOK_UDP_CMD=""
 TCP_REDIR_PORTS=$(config_t_get global_forwarding tcp_redir_ports '80,443')
 UDP_REDIR_PORTS=$(config_t_get global_forwarding udp_redir_ports '1:65535')
+TCP_NO_REDIR_PORTS=$(config_t_get global_forwarding tcp_no_redir_ports 'disable')
+UDP_NO_REDIR_PORTS=$(config_t_get global_forwarding udp_no_redir_ports 'disable')
 KCPTUN_REDIR_PORT=$(config_t_get global_forwarding kcptun_port 12948)
 PROXY_MODE=$(config_t_get global proxy_mode chnroute)
 
 load_config() {
-	[ "$ENABLED" != 1 ] && {
-		return 1
-	}
+	[ "$ENABLED" != 1 ] && return 1
 	[ "$TCP_NODE1" == "nil" -a "$UDP_NODE1" == "nil" -a "$SOCKS5_NODE1" == "nil" ] && {
 		echolog "没有选择节点！"
 		return 1
@@ -199,6 +212,7 @@ load_config() {
 		process=$(config_t_get global_forwarding process)
 	fi
 	LOCALHOST_PROXY_MODE=$(config_t_get global localhost_proxy_mode default)
+	[ "$LOCALHOST_PROXY_MODE" == "default" ] && LOCALHOST_PROXY_MODE=$PROXY_MODE
 	UP_CHINA_DNS=$(config_t_get global up_china_dns dnsbyisp)
 	[ "$UP_CHINA_DNS" == "default" ] && IS_DEFAULT_CHINA_DNS=1
 	[ ! -f "$RESOLVFILE" -o ! -s "$RESOLVFILE" ] && RESOLVFILE=/tmp/resolv.conf.auto
@@ -347,9 +361,9 @@ gen_start_config() {
 				local plugin_params=""
 				local plugin=$(config_n_get $node ss_plugin)
 				if [ "$plugin" != "none" ]; then
-					[ "$plugin" == "v2ray-plugin" ] && {
-						local opts=$(config_n_get $node ss_plugin_v2ray_opts)
-						plugin_params="--plugin v2ray-plugin --plugin-opts $opts"
+					[ "$plugin" == "v2ray-plugin" -o "$plugin" == "obfs-local" ] && {
+						local opts=$(config_n_get $node ss_plugin_opts)
+						plugin_params="--plugin $plugin --plugin-opts $opts"
 					}
 				fi
 				$ss_bin -c $config_file -b 0.0.0.0 -u $plugin_params >/dev/null 2>&1 &
@@ -455,9 +469,9 @@ gen_start_config() {
 				local plugin_params=""
 				local plugin=$(config_n_get $node ss_plugin)
 				if [ "$plugin" != "none" ]; then
-					[ "$plugin" == "v2ray-plugin" ] && {
-						local opts=$(config_n_get $node ss_plugin_v2ray_opts)
-						plugin_params="--plugin v2ray-plugin --plugin-opts $opts"
+					[ "$plugin" == "v2ray-plugin" -o "$plugin" == "obfs-local" ] && {
+						local opts=$(config_n_get $node ss_plugin_opts)
+						plugin_params="--plugin $plugin --plugin-opts $opts"
 					}
 				fi
 				$ss_bin -c $config_file -f $RUN_PID_PATH/udp_ss_1_$5 -U $plugin_params >/dev/null 2>&1 &
@@ -568,9 +582,9 @@ gen_start_config() {
 					local plugin_params=""
 					local plugin=$(config_n_get $node ss_plugin)
 					if [ "$plugin" != "none" ]; then
-						[ "$plugin" == "v2ray-plugin" ] && {
-						local opts=$(config_n_get $node ss_plugin_v2ray_opts)
-						plugin_params="--plugin v2ray-plugin --plugin-opts $opts"
+						[ "$plugin" == "v2ray-plugin" -o "$plugin" == "obfs-local" ] && {
+						local opts=$(config_n_get $node ss_plugin_opts)
+						plugin_params="--plugin $plugin --plugin-opts $opts"
 						}
 					fi
 					for k in $(seq 1 $process); do
@@ -622,38 +636,6 @@ clean_log() {
 	fi
 }
 
-set_cru() {
-	autoupdate=$(config_t_get global_rules auto_update)
-	weekupdate=$(config_t_get global_rules week_update)
-	dayupdate=$(config_t_get global_rules time_update)
-	autoupdatesubscribe=$(config_t_get global_subscribe auto_update_subscribe)
-	weekupdatesubscribe=$(config_t_get global_subscribe week_update_subscribe)
-	dayupdatesubscribe=$(config_t_get global_subscribe time_update_subscribe)
-	if [ "$autoupdate" = "1" ]; then
-		if [ "$weekupdate" = "7" ]; then
-			echo "0 $dayupdate * * * $APP_PATH/rule_update.sh" >>/etc/crontabs/root
-			echolog "设置自动更新规则在每天 $dayupdate 点。"
-		else
-			echo "0 $dayupdate * * $weekupdate $APP_PATH/rule_update.sh" >>/etc/crontabs/root
-			echolog "设置自动更新规则在星期 $weekupdate 的 $dayupdate 点。"
-		fi
-	else
-		sed -i '/rule_update.sh/d' /etc/crontabs/root >/dev/null 2>&1 &
-	fi
-
-	if [ "$autoupdatesubscribe" = "1" ]; then
-		if [ "$weekupdatesubscribe" = "7" ]; then
-			echo "0 $dayupdatesubscribe * * * $APP_PATH/subscription.sh" >>/etc/crontabs/root
-			echolog "设置节点订阅自动更新规则在每天 $dayupdatesubscribe 点。"
-		else
-			echo "0 $dayupdatesubscribe * * $weekupdate $APP_PATH/subscription.sh" >>/etc/crontabs/root
-			echolog "设置节点订阅自动更新规则在星期 $weekupdate 的 $dayupdatesubscribe 点。"
-		fi
-	else
-		sed -i '/subscription.sh/d' /etc/crontabs/root >/dev/null 2>&1 &
-	fi
-}
-
 start_crontab() {
 	sed -i '/$CONFIG/d' /etc/crontabs/root >/dev/null 2>&1 &
 	start_daemon=$(config_t_get global_delay start_daemon)
@@ -689,6 +671,37 @@ start_crontab() {
 			echolog "设置每$testing_time分钟执行检测脚本。"
 		}
 	}
+	
+	autoupdate=$(config_t_get global_rules auto_update)
+	weekupdate=$(config_t_get global_rules week_update)
+	dayupdate=$(config_t_get global_rules time_update)
+	autoupdatesubscribe=$(config_t_get global_subscribe auto_update_subscribe)
+	weekupdatesubscribe=$(config_t_get global_subscribe week_update_subscribe)
+	dayupdatesubscribe=$(config_t_get global_subscribe time_update_subscribe)
+	if [ "$autoupdate" = "1" ]; then
+		if [ "$weekupdate" = "7" ]; then
+			echo "0 $dayupdate * * * $APP_PATH/rule_update.sh" >>/etc/crontabs/root
+			echolog "设置自动更新规则在每天 $dayupdate 点。"
+		else
+			echo "0 $dayupdate * * $weekupdate $APP_PATH/rule_update.sh" >>/etc/crontabs/root
+			echolog "设置自动更新规则在星期 $weekupdate 的 $dayupdate 点。"
+		fi
+	else
+		sed -i '/rule_update.sh/d' /etc/crontabs/root >/dev/null 2>&1 &
+	fi
+
+	if [ "$autoupdatesubscribe" = "1" ]; then
+		if [ "$weekupdatesubscribe" = "7" ]; then
+			echo "0 $dayupdatesubscribe * * * $APP_PATH/subscription.sh" >>/etc/crontabs/root
+			echolog "设置节点订阅自动更新规则在每天 $dayupdatesubscribe 点。"
+		else
+			echo "0 $dayupdatesubscribe * * $weekupdate $APP_PATH/subscription.sh" >>/etc/crontabs/root
+			echolog "设置节点订阅自动更新规则在星期 $weekupdate 的 $dayupdatesubscribe 点。"
+		fi
+	else
+		sed -i '/subscription.sh/d' /etc/crontabs/root >/dev/null 2>&1 &
+	fi
+	
 	/etc/init.d/cron restart
 }
 
@@ -725,7 +738,7 @@ start_dns() {
 		pdnsd_bin=$(find_bin pdnsd)
 		[ -n "$pdnsd_bin" ] && {
 			use_tcp_node_resolve_dns=1
-			gen_pdnsd_config $DNS_PORT "cache"
+			gen_pdnsd_config $DNS_PORT 10240
 			DNS_FORWARD=$(echo $DNS_FORWARD | sed 's/,/ /g')
 			nohup $pdnsd_bin --daemon -c $pdnsd_dir/pdnsd.conf -d >/dev/null 2>&1 &
 			echolog "DNS：pdnsd..."
@@ -735,8 +748,8 @@ start_dns() {
 		chinadns_ng_bin=$(find_bin chinadns-ng)
 		[ -n "$chinadns_ng_bin" ] && {
 			other_port=$(expr $DNS_PORT + 1)
-			cat $RULE_PATH/gfwlist.conf | sort | uniq | sed -e '/127.0.0.1/d' | sed 's/ipset=\/.//g' | sed 's/\/gfwlist//g' > $CONFIG_PATH/gfwlist_chinadns_ng.txt
-			[ -f "$CONFIG_PATH/gfwlist_chinadns_ng.txt" ] && local gfwlist_param="-g $CONFIG_PATH/gfwlist_chinadns_ng.txt"
+			cat $RULE_PATH/gfwlist.conf | sort | uniq | sed -e '/127.0.0.1/d' | sed 's/ipset=\/.//g' | sed 's/\/gfwlist//g' > $CONFIG_PATH/gfwlist.txt
+			[ -f "$CONFIG_PATH/gfwlist.txt" ] && local gfwlist_param="-g $CONFIG_PATH/gfwlist.txt"
 			[ -f "$RULE_PATH/chnlist" ] && local chnlist_param="-m $RULE_PATH/chnlist"
 			
 			up_trust_chinadns_ng_dns=$(config_t_get global up_trust_chinadns_ng_dns "pdnsd")
@@ -746,7 +759,7 @@ start_dns() {
 					force_stop
 				else
 					use_tcp_node_resolve_dns=1
-					gen_pdnsd_config $other_port
+					gen_pdnsd_config $other_port 0
 					pdnsd_bin=$(find_bin pdnsd)
 					[ -n "$pdnsd_bin" ] && {
 						DNS_FORWARD=$(echo $DNS_FORWARD | sed 's/,/ /g')
@@ -781,37 +794,20 @@ start_dns() {
 
 add_dnsmasq() {
 	mkdir -p $TMP_DNSMASQ_PATH $DNSMASQ_PATH /var/dnsmasq.d
-	
-	# if [ -n "cat /var/state/network |grep pppoe|awk -F '.' '{print $2}'" ]; then
-	# sed -i '/except-interface/d' /etc/dnsmasq.conf >/dev/null 2>&1 &
-	# for wanname in $(cat /var/state/network |grep pppoe|awk -F '.' '{print $2}')
-	# do
-	# echo "except-interface=$(uci -q get network.$wanname.ifname)" >>/etc/dnsmasq.conf
-	# done
-	# fi
+	cat $RULE_PATH/whitelist_host | sed "s/^/ipset=&\/./g" | sed "s/$/\/&whitelist/g" | sort | awk '{if ($0!=line) print;line=$0}' > $TMP_DNSMASQ_PATH/whitelist_host.conf
 
-	subscribe_proxy=$(config_t_get global_subscribe subscribe_proxy 0)
-	[ "$subscribe_proxy" -eq 1 ] && {
-		config_foreach set_subscribe_proxy "subscribe_list"
+	[ "$DNS_MODE" != "nonuse" ] && {
+		[ -f "$RULE_PATH/blacklist_host" -a -s "$RULE_PATH/blacklist_host" ] && cat $RULE_PATH/blacklist_host | awk '{print "server=/."$1"/127.0.0.1#'$DNS_PORT'\nipset=/."$1"/blacklist"}' > $TMP_DNSMASQ_PATH/blacklist_host.conf
+		[ -f "$RULE_PATH/router" -a -s "$RULE_PATH/router" ] && cat $RULE_PATH/router | awk '{print "server=/."$1"/127.0.0.1#'$DNS_PORT'\nipset=/."$1"/router"}' > $TMP_DNSMASQ_PATH/router.conf
+		[ -f "$RULE_PATH/gfwlist.conf" -a -s "$RULE_PATH/gfwlist.conf" ] && ln -s $RULE_PATH/gfwlist.conf $TMP_DNSMASQ_PATH/gfwlist.conf
+		
+		subscribe_proxy=$(config_t_get global_subscribe subscribe_proxy 0)
+		[ "$subscribe_proxy" -eq 1 ] && {
+			config_foreach set_subscribe_proxy "subscribe_list"
+		}
 	}
-
-	if [ ! -f "$TMP_DNSMASQ_PATH/gfwlist.conf" -a "$DNS_MODE" != "nonuse" ]; then
-		ln -s $RULE_PATH/gfwlist.conf $TMP_DNSMASQ_PATH/gfwlist.conf
-	fi
-
-	if [ ! -f "$TMP_DNSMASQ_PATH/blacklist_host.conf" -a "$DNS_MODE" != "nonuse" ]; then
-		cat $RULE_PATH/blacklist_host | awk '{print "server=/."$1"/127.0.0.1#'$DNS_PORT'\nipset=/."$1"/blacklist"}' >>$TMP_DNSMASQ_PATH/blacklist_host.conf
-	fi
-
-	if [ ! -f "$TMP_DNSMASQ_PATH/whitelist_host.conf" ]; then
-		cat $RULE_PATH/whitelist_host | sed "s/^/ipset=&\/./g" | sed "s/$/\/&whitelist/g" | sort | awk '{if ($0!=line) print;line=$0}' >$TMP_DNSMASQ_PATH/whitelist_host.conf
-	fi
-
-	if [ ! -f "$TMP_DNSMASQ_PATH/router.conf" -a "$DNS_MODE" != "nonuse" ]; then
-		cat $RULE_PATH/router | awk '{print "server=/."$1"/127.0.0.1#'$DNS_PORT'\nipset=/."$1"/router"}' >>$TMP_DNSMASQ_PATH/router.conf
-	fi
-
-	if [ -z "$IS_DEFAULT_CHINA_DNS" -o "$IS_DEFAULT_CHINA_DNS" == 0 ]; then
+	
+	[ -z "$IS_DEFAULT_CHINA_DNS" -o "$IS_DEFAULT_CHINA_DNS" == 0 ] && {
 		server="server=127.0.0.1#$DNS_PORT"
 		[ "$DNS_MODE" != "chinadns-ng" ] && {
 			local china_dns1=$(echo $UP_CHINA_DNS | awk -F "," '{print $1}')
@@ -825,7 +821,7 @@ add_dnsmasq() {
 			all-servers
 			no-poll
 		EOF
-	fi
+	}
 	
 	cat <<-EOF >> /var/dnsmasq.d/dnsmasq-$CONFIG.conf
 		conf-dir=$TMP_DNSMASQ_PATH
@@ -903,11 +899,12 @@ gen_redsocks_config() {
 gen_pdnsd_config() {
 	pdnsd_dir=$CONFIG_PATH/pdnsd
 	mkdir -p $pdnsd_dir
+	touch $pdnsd_dir/pdnsd.cache
 	chown -R root.nogroup $pdnsd_dir
-	[ "$2" == "cache" ] && cache_param="perm_cache = 1024;\ncache_dir = \"$pdnsd_dir\";"
 	cat > $pdnsd_dir/pdnsd.conf <<-EOF
 		global {
-			$(echo -e $cache_param)
+			perm_cache = $2;
+			cache_dir = "$pdnsd_dir";
 			pid_file = "$RUN_PID_PATH/pdnsd.pid";
 			run_as = "root";
 			server_ip = 127.0.0.1;
@@ -941,36 +938,34 @@ gen_pdnsd_config() {
 		EOF
 	}
 		
-	[ "$DNS_MODE" != "chinadns-ng" ] && {
-		cat >> $pdnsd_dir/pdnsd.conf <<-EOF
-			server {
-				label = "opendns";
-				ip = 208.67.222.222, 208.67.220.220;
-				edns_query = on;
-				port = 443;
-				timeout = 4;
-				interval = 60;
-				uptest = none;
-				purge_cache = off;
-			}
-			server {
-				label = "opendns";
-				ip = 208.67.222.222, 208.67.220.220;
-				edns_query = on;
-				port = 5353;
-				timeout = 4;
-				interval = 60;
-				uptest = none;
-				purge_cache = off;
-			}
-			source {
-				ttl = 86400;
-				owner = "localhost.";
-				serve_aliases = on;
-				file = "/etc/hosts";
-			}
-		EOF
-	}
+	cat >> $pdnsd_dir/pdnsd.conf <<-EOF
+		server {
+			label = "opendns";
+			ip = 208.67.222.222, 208.67.220.220;
+			edns_query = on;
+			port = 443;
+			timeout = 4;
+			interval = 60;
+			uptest = none;
+			purge_cache = off;
+		}
+		server {
+			label = "opendns";
+			ip = 208.67.222.222, 208.67.220.220;
+			edns_query = on;
+			port = 5353;
+			timeout = 4;
+			interval = 60;
+			uptest = none;
+			purge_cache = off;
+		}
+		source {
+			ttl = 86400;
+			owner = "localhost.";
+			serve_aliases = on;
+			file = "/etc/hosts";
+		}
+	EOF
 }
 
 stop_dnsmasq() {
@@ -1096,13 +1091,15 @@ force_stop() {
 }
 
 boot() {
-	local delay=$(config_t_get global_delay start_delay 1)
-	if [ "$delay" -gt 0 ]; then
-		echolog "执行启动延时 $delay 秒后再启动!"
-		sleep $delay && start >/dev/null 2>&1 &
-	else
-		start
-	fi
+	[ "$ENABLED" == 1 ] && {
+		local delay=$(config_t_get global_delay start_delay 1)
+		if [ "$delay" -gt 0 ]; then
+			echolog "执行启动延时 $delay 秒后再启动!"
+			sleep $delay && start >/dev/null 2>&1 &
+		else
+			start
+		fi
+	}
 	return 0
 }
 
@@ -1110,15 +1107,14 @@ start() {
 	! load_config && return 1
 	[ -f "$LOCK_FILE" ] && return 3
 	touch "$LOCK_FILE"
-	start_dns
-	add_dnsmasq
 	start_haproxy
 	start_redir SOCKS5 PROXY tcp
 	start_redir TCP REDIR tcp
 	start_redir UDP REDIR udp
+	start_dns
 	source $APP_PATH/iptables.sh start
+	add_dnsmasq
 	start_crontab
-	set_cru
 	rm -f "$LOCK_FILE"
 	echolog "运行完成！\n"
 	return 0
@@ -1137,7 +1133,7 @@ stop() {
 	done
 	clean_log
 	source $APP_PATH/iptables.sh stop
-	kill_all brook dns2socks haproxy chinadns-ng ipt2socks v2ray-plugin
+	kill_all brook dns2socks haproxy chinadns-ng ipt2socks v2ray-plugin obfs-local
 	ps -w | grep -E "$CONFIG_TCP_FILE|$CONFIG_UDP_FILE|$CONFIG_SOCKS5_FILE" | grep -v "grep" | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
 	ps -w | grep -E "$CONFIG_PATH" | grep -v "grep" | awk '{print $1}' | xargs kill -9 >/dev/null 2>&1 &
 	rm -rf $TMP_DNSMASQ_PATH $CONFIG_PATH

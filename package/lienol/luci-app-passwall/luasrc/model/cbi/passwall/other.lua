@@ -54,6 +54,22 @@ s = m:section(TypedSection, "global_forwarding",
 s.anonymous = true
 s.addremove = false
 
+---- TCP No Redir Ports
+o = s:option(Value, "tcp_no_redir_ports", translate("TCP No Redir Ports"),
+             translate(
+                 "Fill in the ports you don't want to be forwarded by the agent, with the highest priority."))
+o.default = "disable"
+o:value("disable", translate("No patterns are used"))
+o:value("1:65535", translate("All"))
+
+---- UDP No Redir Ports
+o = s:option(Value, "udp_no_redir_ports", translate("UDP No Redir Ports"),
+             translate(
+                 "Fill in the ports you don't want to be forwarded by the agent, with the highest priority."))
+o.default = "disable"
+o:value("disable", translate("No patterns are used"))
+o:value("1:65535", translate("All"))
+
 ---- TCP Redir Ports
 o = s:option(Value, "tcp_redir_ports", translate("TCP Redir Ports"))
 o.default = "80,443"
@@ -159,8 +175,10 @@ o.default = "0"
 o.rmempty = false
 
 ---- Hide Menu
-o = s:option(Button, "hide", translate("Hide Menu"), translate(
-                 "After the hidden to the display, type in the address bar enter the admin/vpn/passwall/show.<br />such as: http://192.168.1.1/cgi-bin/luci/admin/vpn/passwall/show"))
+o = s:option(Button, "hide", translate("Hide Menu"),
+             translate(
+                 "After the hidden to the display, input example in the address bar: ") ..
+                 "http://192.168.1.1/cgi-bin/luci/admin/vpn/passwall/show")
 o.inputstyle = "remove"
 function o.write(e, e)
     luci.http.redirect(luci.dispatcher.build_url("admin", "vpn", "passwall",

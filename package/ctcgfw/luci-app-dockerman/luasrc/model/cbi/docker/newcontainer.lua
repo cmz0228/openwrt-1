@@ -4,6 +4,7 @@ Copyright 2019 lisaac <https://github.com/lisaac/luci-app-dockerman>
 ]]--
 
 require "luci.util"
+require "math"
 local uci = luci.model.uci.cursor()
 local docker = require "luci.model.docker"
 local dk = docker.new()
@@ -14,10 +15,23 @@ local images = dk.images:list().body
 local networks = dk.networks:list().body
 local containers = dk.containers:list(nil, {all=true}).body
 
+local is_quot_complete = function(str)
+  if not str then return true end
+  local num = 0, w
+  for w in str:gmatch("[\"\']") do
+    num = num + 1
+  end
+  if math.fmod(num, 2) ~= 0 then
+    return false
+  else
+    return true
+  end
+end
+
 -- reslvo default config
 local default_config = { }
 if cmd_line and cmd_line:match("^docker.+") then
-  local key = nil
+  local key = nil, _key
   --cursor = 0: docker run
   --cursor = 1: resloving para
   --cursor = 2: resloving image
@@ -26,14 +40,33 @@ if cmd_line and cmd_line:match("^docker.+") then
   for w in cmd_line:gmatch("[^%s]+") do 
     -- skip '\'
     if w == '\\' then
+    elseif _key then
+      -- there is a value that unpair quotation marks:
+      -- "i was a ok man"
+      -- now we only get: "i
+      if _key == "mount" or _key == "link" or _key == "env" or _key == "dns" or _key == "port" or _key == "device" or _key == "tmpfs" then
+        default_config[_key][#default_config[_key]] = default_config[_key][#default_config[_key]] .. " " .. w
+        if is_quot_complete(default_config[_key][#default_config[_key]]) then
+          -- clear quotation marks
+          default_config[_key][#default_config[_key]] = default_config[_key][#default_config[_key]]:gsub("[\"\']", "")
+          _key = nil
+        end
+      else
+        default_config[_key] = default_config[_key] .. " ".. w
+        if is_quot_complete(default_config[_key]) then
+          -- clear quotation marks
+          default_config[_key] = default_config[_key]:gsub("[\"\']", "")
+          _key = nil
+        end
+      end
     -- start with '-'
     elseif w:match("^%-+.+") and cursor <= 1 then
       --key=value
       local val
-      key, val = w:match("^%-%-(.-)=(.+)")
+      key, val = w:match("^%-+(.-)=(.+)")
       -- -dit
-      if not key then key = w:match("^%-%-(.+)") end
-      
+      if not key then key = w:match("^%-+(.+)") end
+
       if not key then
         key = w:match("^%-(.+)")
         if key:match("i") or key:match("t") or key:match("d") then
@@ -43,10 +76,10 @@ if cmd_line and cmd_line:match("^docker.+") then
           key = nil
         end
       end
-      
+
       if key == "v" or key == "volume" then
         key = "mount"
-      elseif key == "p" then
+      elseif key == "p" or key == "publish" then
         key = "port"
       elseif key == "e" then
         key = "env"
@@ -54,6 +87,8 @@ if cmd_line and cmd_line:match("^docker.+") then
         key = "dns"
       elseif key == "net" then
         key = "network"
+      elseif key == "h" or key == "hostname" then
+        key = "hostname"
       elseif key == "cpu-shares" then
         key = "cpushares"
       elseif key == "m" then
@@ -63,14 +98,26 @@ if cmd_line and cmd_line:match("^docker.+") then
       elseif key == "privileged" then
         default_config["privileged"] = true
         key = nil
+      elseif key == "cap-add" then
+        default_config["privileged"] = true
       end
       --key=value
       if val then
         if key == "mount" or key == "link" or key == "env" or key == "dns" or key == "port" or key == "device" or key == "tmpfs" then
           if not default_config[key] then default_config[key] = {} end
           table.insert( default_config[key], val )
+          -- clear quotation marks
+          default_config[key][#default_config[key]] = default_config[key][#default_config[key]]:gsub("[\"\']", "")
         else
           default_config[key] = val
+          -- clear quotation marks
+          default_config[key] = default_config[key]:gsub("[\"\']", "")
+        end
+        -- if there are " or ' in val and separate by space, we need keep the _key to link with next w
+        if is_quot_complete(val) then
+          _key = nil
+        else
+          _key = key
         end
         -- clear key
         key = nil
@@ -81,11 +128,21 @@ if cmd_line and cmd_line:match("^docker.+") then
       if key == "mount" or key == "link" or key == "env" or key == "dns" or key == "port" or key == "device" or key == "tmpfs" then
         if not default_config[key] then default_config[key] = {} end
         table.insert( default_config[key], w )
+        -- clear quotation marks
+        default_config[key][#default_config[key]] = default_config[key][#default_config[key]]:gsub("[\"\']", "")
       else
         default_config[key] = w
+        -- clear quotation marks
+        default_config[key] = default_config[key]:gsub("[\"\']", "")
       end
       if key == "cpus" or key == "cpushare" or key == "memory" or key == "blkioweight" or key == "device" or key == "tmpfs" then
         default_config["advance"] = 1
+      end
+      -- if there are " or ' in val and separate by space, we need keep the _key to link with next w
+      if is_quot_complete(w) then
+        _key = nil
+      else
+        _key = key
       end
       key = nil
       cursor = 1
@@ -106,6 +163,7 @@ elseif cmd_line and cmd_line:match("^duplicate/[^/]+$") then
   if next(create_body) ~= nil then
     default_config.name = nil
     default_config.image = create_body.Image
+    default_config.hostname = create_body.Hostname
     default_config.tty = create_body.Tty and true or false
     default_config.interactive = create_body.OpenStdin and true or false
     default_config.privileged = create_body.HostConfig.Privileged and true or false
@@ -147,7 +205,7 @@ end
 
 local m = SimpleForm("docker", translate("Docker"))
 m.template = "docker/cbi/xsimpleform"
-m.redirect = luci.dispatcher.build_url("admin", "docker", "containers")
+m.redirect = luci.dispatcher.build_url("admin", "services","docker", "containers")
 -- m.reset = false
 -- m.submit = false
 -- new Container
@@ -267,6 +325,11 @@ d.disabled = 0
 d.enabled = 1
 d.default = default_config.advance or 0
 
+d = s:option(Value, "hostname", translate("Host Name"))
+d.rmempty = true
+d.default = default_config.hostname or nil
+d:depends("advance", 1)
+
 d = s:option(DynamicList, "device", translate("Device(--device)"), translate("Add host device to the container"))
 d.template = "docker/cbi/xdynlist"
 d.placeholder = "/dev/sda:/dev/xvdc:rwm"
@@ -331,6 +394,7 @@ m.handle = function(self, state, data)
   if state ~= FORM_VALID then return end
   local tmp
   local name = data.name or ("luci_" .. os.date("%Y%m%d%H%M%S"))
+  local hostname = data.hostname
   local tty = type(data.tty) == "number" and (data.tty == 1 and true or false) or default_config.tty or false
   local interactive = type(data.interactive) == "number" and (data.interactive == 1 and true or false) or default_config.interactive or false
   local image = data.image
@@ -423,7 +487,7 @@ m.handle = function(self, state, data)
     end
   end
 
-  create_body.Hostname = network ~= "host" and name or nil
+  create_body.Hostname = network ~= "host" and (hostname or name) or nil
   create_body.Tty = tty and true or false
   create_body.OpenStdin = interactive and true or false
   create_body.User = user
@@ -478,11 +542,11 @@ m.handle = function(self, state, data)
     docker:append_status("Images: " .. "pulling" .. " " .. image .. "...")
     local x_auth = nixio.bin.b64encode(json_stringify({serveraddress= server}))
     local res = dk.images:create(nil, {fromImage=image,_header={["X-Registry-Auth"]=x_auth}})
-    if res and res.code < 300 then
+    if res and res.code == 200 then
       docker:append_status("done<br>")
     else
       docker:append_status("fail code:" .. res.code.." ".. (res.body.message and res.body.message or res.message).. "<br>")
-      luci.http.redirect(luci.dispatcher.build_url("admin/docker/newcontainer"))
+      luci.http.redirect(luci.dispatcher.build_url("admin/services/docker/newcontainer"))
     end
   end
   docker:clear_status()
@@ -505,10 +569,10 @@ m.handle = function(self, state, data)
   local res = dk.containers:create(name, nil, create_body)
   if res and res.code == 201 then
     docker:clear_status()
-    luci.http.redirect(luci.dispatcher.build_url("admin/docker/containers"))
+    luci.http.redirect(luci.dispatcher.build_url("admin/services/docker/containers"))
   else
     docker:append_status("fail code:" .. res.code.." ".. (res.body.message and res.body.message or res.message))
-    luci.http.redirect(luci.dispatcher.build_url("admin/docker/newcontainer"))
+    luci.http.redirect(luci.dispatcher.build_url("admin/services/docker/newcontainer"))
   end
 end
 

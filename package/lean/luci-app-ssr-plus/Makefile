@@ -1,7 +1,7 @@
 include $(TOPDIR)/rules.mk
 
 PKG_NAME:=luci-app-ssr-plus
-PKG_RELEASE:=136
+PKG_RELEASE:=139
 PKG_VERSION:=1
 
 include $(INCLUDE_DIR)/package.mk
@@ -10,6 +10,14 @@ define Package/$(PKG_NAME)/config
 config PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks
 	bool "Include Shadowsocks New Version"
 	default y if x86_64
+
+config PACKAGE_$(PKG_NAME)_INCLUDE_Simple_obfs
+        bool "Include Shadowsocks Simple-obfs Plugin"
+        default y if x86_64
+
+config PACKAGE_$(PKG_NAME)_INCLUDE_V2ray_plugin
+        bool "Include Shadowsocks V2ray Plugin"
+        default y if x86_64
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_V2ray
 	bool "Include V2ray"
@@ -28,7 +36,7 @@ config PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Server
 	default y if x86_64
 
 config PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Socks
-	bool "Include ShadowsocksR Socks and Tunnel"
+	bool "Include Socks Sever"
 	default y if x86_64
 endef
 
@@ -40,12 +48,14 @@ define Package/luci-app-ssr-plus
 	PKGARCH:=all
 	DEPENDS:=+shadowsocksr-libev-alt +ipset +ip-full +iptables-mod-tproxy +dnsmasq-full +coreutils +coreutils-base64 +pdnsd-alt +wget +lua \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Shadowsocks:shadowsocks-libev-ss-redir \
+	+PACKAGE_$(PKG_NAME)_INCLUDE_Simple_obfs:simple-obfs \
+	+PACKAGE_$(PKG_NAME)_INCLUDE_V2ray_plugin:v2ray-plugin \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_V2ray:v2ray \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Trojan:trojan \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Trojan:ipt2socks \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_Kcptun:kcptun-client \
 	+PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Server:shadowsocksr-libev-server \
-	+PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Socks:shadowsocksr-libev-ssr-local
+	+PACKAGE_$(PKG_NAME)_INCLUDE_ShadowsocksR_Socks:srelay
 endef
 
 define Build/Prepare
